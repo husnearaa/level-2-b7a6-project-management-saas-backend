@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-   "scripts": {
+  "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsup",
     "start": "node dist/server.js",
@@ -11,13 +11,11 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "webhook:stripe": "stripe listen --forward-to localhost:5000/payments/webhook",
-
-      "format:check": "npx @biomejs/biome format ./src",
-        "format:fix": "npx @biomejs/biome format --write ./src",
-        "lint:check": "npx @biomejs/biome lint ./src",
-        "lint:fix": "npx @biomejs/biome lint --write ./src"
+    "format:check": "npx @biomejs/biome format ./src",
+    "format:fix": "npx @biomejs/biome format --write ./src",
+    "lint:check": "npx @biomejs/biome lint ./src",
+    "lint:fix": "npx @biomejs/biome lint --write ./src"
   },
-  
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -29,6 +27,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.2",
     "prisma": "^7.10.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },

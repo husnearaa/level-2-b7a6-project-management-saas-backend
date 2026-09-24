@@ -1,7 +1,11 @@
-import app from "./app.js";
+import app from "./app";
+import config from "./config";
 
-const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+if (config.NODE_ENV !== "development") {
+app.listen(5000, () => {
+  console.log(`Server is running on http://localhost:5000`);
 });
+}
+
+export default app;
