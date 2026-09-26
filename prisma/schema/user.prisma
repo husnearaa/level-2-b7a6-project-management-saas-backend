@@ -1,10 +1,75 @@
 model User {
-    id String @id @default(uuid())
-    name String
-    email String @unique
-    password String
-    isActive Boolean @default(true)
-    isDeleted Boolean @default(false)
-    createdAt DateTime @default(now())
+  id            String       @id @default(uuid())
+  name          String
+  email         String       @unique
+  password      String?
+  googleId      String?      @unique
+  authProvider  AuthProvider @default(CREDENTIAL)
+  emailVerified Boolean      @default(false)
 
+  role          Role         @default(MEMBER)
+  status        UserStatus   @default(ACTIVE)
+
+  isDeleted     Boolean      @default(false)
+  deletedAt     DateTime?
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  managedProjects    Project[]       @relation("ProjectManager")
+  createdProjects    Project[]       @relation("ProjectCreator")
+  projectMemberships ProjectMember[]
+
+  assignedTasks      Task[]          @relation("TaskAssignee")
+  createdTasks       Task[]          @relation("TaskCreator")
+
+  refreshTokens      RefreshToken[]
+
+  subscriptions      Subscription[]
+  payments           Payment[]
+
+  auditLogs          AuditLog[]      @relation("AuditActor")
+
+  @@index([role])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  userId    String?
+
+  action    AuditAction
+  entity    AuditEntity
+  entityId  String
+
+  oldData   Json?
+  newData   Json?
+
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation("AuditActor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entity])
+  @@index([entityId])
+  @@index([action])
+  @@index([createdAt])
 }

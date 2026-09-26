@@ -1,0 +1,30 @@
+model Payment {
+  id                    String          @id @default(uuid())
+  userId                String
+  subscriptionId        String?
+
+  amount                Decimal         @db.Decimal(10, 2)
+  currency              String          @default("USD") @db.VarChar(10)
+
+  provider              PaymentProvider @default(STRIPE)
+  status                PaymentStatus   @default(PENDING)
+
+  stripeSessionId       String?         @unique
+  stripePaymentIntentId String?         @unique
+  stripeEventId         String?         @unique
+
+  paidAt                DateTime?
+
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([provider])
+  @@index([createdAt])
+}
