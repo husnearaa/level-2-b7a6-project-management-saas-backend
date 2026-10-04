@@ -17,3 +17,31 @@ export const registerSchema = z.object({
       .max(100, "Password must not exceed 100 characters"),
   }),
 });
+
+export const loginSchema = z.object({
+  body: z.object({
+    email: z
+      .string()
+      .email("Please provide a valid email address"),
+
+    password: z
+      .string()
+      .min(1, "Password is required"),
+  }),
+});
+
+export const googleLoginSchema = z.object({
+  body: z.object({
+    idToken: z
+      .string()
+      .min(1, "Google ID token is required"),
+  }),
+});
+
+export const refreshTokenSchema = z.object({
+  body: z.object({
+    refreshToken: z
+      .string()
+      .min(1, "Refresh token is required"),
+  }),
+});
