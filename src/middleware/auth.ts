@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import type { Role } from "../../prisma/generated/prisma/enums";
+
 import { jwtUtils } from "../utils/jwt";
 import AppError from "../utils/appError";
 
@@ -9,34 +10,26 @@ const auth = (
   next: NextFunction
 ) => {
   try {
-    // 1. Check Authorization header
     const authHeader = req.headers.authorization;
 
-    // 2. Check custom x-access-token header
-    const customToken = req.headers["x-access-token"];
+    if (!authHeader) {
+      throw new AppError(401, "Access token is required");
+    }
 
-    let token: string | undefined;
+    let token: string;
 
-    if (authHeader) {
-      const [scheme, bearerToken] = authHeader.split(" ");
-
-      if (scheme !== "Bearer" || !bearerToken) {
-        throw new AppError(
-          401,
-          "Invalid authorization format"
-        );
-      }
-
-      token = bearerToken;
-    } else if (typeof customToken === "string") {
-      token = customToken;
+    // Method 1:
+    // Authorization: Bearer <token>
+    if (authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7).trim();
+    } else {
+      // Method 2:
+      // Authorization: <token>
+      token = authHeader.trim();
     }
 
     if (!token) {
-      throw new AppError(
-        401,
-        "Access token is required"
-      );
+      throw new AppError(401, "Access token is required");
     }
 
     const secret = process.env.JWT_ACCESS_SECRET;
