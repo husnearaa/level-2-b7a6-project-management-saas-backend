@@ -4,13 +4,23 @@ import jwt, {
 } from "jsonwebtoken";
 
 const createToken = (
-  payload: JwtPayload,
+  payload: JwtPayload | object,
   secret: string,
-  expiresIn: NonNullable<SignOptions["expiresIn"]>
+  expiresIn: string | number
 ) => {
-  return jwt.sign(payload, secret, {
-    expiresIn,
-  });
+  const options: SignOptions = {};
+
+  if (expiresIn !== undefined) {
+    options.expiresIn = expiresIn as NonNullable<
+      SignOptions["expiresIn"]
+    >;
+  }
+
+  return jwt.sign(
+    payload,
+    secret,
+    options
+  );
 };
 
 const verifyToken = (
@@ -18,15 +28,18 @@ const verifyToken = (
   secret: string
 ) => {
   try {
-    const verifiedToken = jwt.verify(token, secret);
+    const verifiedToken = jwt.verify(
+      token,
+      secret
+    );
 
     return {
-      success: true,
+      success: true as const,
       data: verifiedToken,
     };
   } catch (error) {
     return {
-      success: false,
+      success: false as const,
       error:
         error instanceof Error
           ? error.message
