@@ -3,7 +3,7 @@ import cors from "cors";
 
 import authRoutes from "./module/auth/auth.route";
 import userRoutes from "./module/user/user.route";
-
+import taskRoutes from "./module/task/task.route";
 import globalErrorHandler from "./middleware/globalErrorHandler";
 import { notFoundHandler } from "./middleware/notFound";
 import projectRoute from "./module/project/project.route";
@@ -22,6 +22,10 @@ app.get("/", (req, res) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/projects", projectRoute);
+app.use("/api/v1/tasks", taskRoutes);
+
+
+
 
 // 404 Handler
 app.use(notFoundHandler);
