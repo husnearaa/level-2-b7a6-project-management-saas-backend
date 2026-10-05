@@ -1,28 +1,39 @@
 import { Router } from "express";
+
 import auth from "../../middleware/auth";
 import validateRequest from "../../middleware/validateRequest";
+
 import { paymentController } from "./payment.controller";
+
 import {
   createCheckoutSessionSchema,
-  paymentIdSchema,
+  getMyPaymentsSchema,
 } from "./payment.validation";
-
-
 
 const router = Router();
 
+/*
+ * Create Stripe Checkout Session
+ */
 router.post(
   "/create-checkout-session",
   auth,
-  validateRequest(createCheckoutSessionSchema),
+  validateRequest(
+    createCheckoutSessionSchema
+  ),
   paymentController.createCheckoutSession
 );
 
+/*
+ * Get logged-in user's payments
+ */
 router.get(
-  "/:id",
+  "/my-payments",
   auth,
-  validateRequest(paymentIdSchema),
-  paymentController.getPaymentById
+  validateRequest(
+    getMyPaymentsSchema
+  ),
+  paymentController.getMyPayments
 );
 
 export default router;

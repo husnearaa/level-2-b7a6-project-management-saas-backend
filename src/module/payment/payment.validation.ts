@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+const paymentStatuses = [
+  "PENDING",
+  "PAID",
+  "FAILED",
+  "CANCELED",
+  "REFUNDED",
+] as const;
+
 export const createCheckoutSessionSchema = z.object({
   body: z.object({
     amount: z
@@ -21,8 +29,28 @@ export const createCheckoutSessionSchema = z.object({
   }),
 });
 
-export const paymentIdSchema = z.object({
-  params: z.object({
-    id: z.string().uuid(),
+export const getMyPaymentsSchema = z.object({
+  query: z.object({
+    page: z.string().optional(),
+
+    limit: z.string().optional(),
+
+    status: z
+      .enum(paymentStatuses)
+      .optional(),
+
+    sortBy: z
+      .enum([
+        "createdAt",
+        "updatedAt",
+        "amount",
+        "status",
+        "paidAt",
+      ])
+      .optional(),
+
+    sortOrder: z
+      .enum(["asc", "desc"])
+      .optional(),
   }),
 });

@@ -5,5 +5,9 @@ export interface ICreateCheckoutPayload {
 }
 
 export interface IPaymentQuery {
-  id: string;
+  page?: string;
+  limit?: string;
+  status?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }
