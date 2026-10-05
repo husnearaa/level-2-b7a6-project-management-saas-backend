@@ -13,6 +13,8 @@ import {
   changeTaskStatusSchema,
   myTasksSchema,
 } from "./task.validation";
+import { Role } from "../../../prisma/generated/prisma/enums";
+import authorizeRole from "../../middleware/role";
 
 const router = Router();
 
@@ -30,9 +32,17 @@ router.get(
   taskController.getTasks
 );
 
+// router.get(
+//   "/my-tasks",
+//   auth,
+//   validateRequest(myTasksSchema),
+//   taskController.getMyTasks
+// );
+
 router.get(
   "/my-tasks",
   auth,
+  authorizeRole(Role.MEMBER),
   validateRequest(myTasksSchema),
   taskController.getMyTasks
 );
