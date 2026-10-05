@@ -19,7 +19,7 @@ router.get(
 );
 
 router.patch(
-  "/me",
+  "/update-profile",
   auth,
   validateRequest(updateProfileSchema),
   userController.updateMyProfile
