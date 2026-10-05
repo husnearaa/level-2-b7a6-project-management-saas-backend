@@ -17,7 +17,7 @@ import {
 const router = Router();
 
 router.post(
-  "/",
+  "/create-project",
   auth,
   validateRequest(createProjectSchema),
   projectController.createProject
