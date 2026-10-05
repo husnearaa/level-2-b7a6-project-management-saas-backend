@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 
 import authRoutes from "./module/auth/auth.route";
+import userRoutes from "./module/user/user.route";
 import globalErrorHandler from "./middleware/globalErrorHandler";
 import { notFoundHandler } from "./middleware/notFound";
 
@@ -17,6 +18,8 @@ app.get("/", (req, res) => {
 
 // API Routes
 app.use("/api/v1/auth", authRoutes);
+
+app.use("/api/v1/users", userRoutes);
 
 // 404 Handler
 app.use(notFoundHandler);
