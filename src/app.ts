@@ -8,6 +8,7 @@ import paymentRoute from "./module/payment/payment.route";
 import globalErrorHandler from "./middleware/globalErrorHandler";
 import { notFoundHandler } from "./middleware/notFound";
 import projectRoute from "./module/project/project.route";
+import adminRoute from "./module/admin/admin.route";
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/projects", projectRoute);
 app.use("/api/v1/tasks", taskRoutes);
 app.use("/api/v1/payments", paymentRoute);
+app.use("/api/v1/admin", adminRoute);
 
 // 404 Handler
 app.use(notFoundHandler);
