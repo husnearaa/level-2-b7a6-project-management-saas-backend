@@ -1,8 +1,9 @@
 import Stripe from "stripe";
 
 import {
-  PaymentProvider,
   PaymentStatus,
+  SubscriptionPlan,
+  SubscriptionStatus,
 } from "../../../prisma/generated/prisma/enums";
 
 import { prisma } from "../../lib/prisma";
@@ -11,125 +12,168 @@ import AppError from "../../utils/appError";
 import type {
   ICreateCheckoutPayload,
   IPaymentQuery,
+  IStripeWebhookResult,
 } from "./payment.interface";
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-if (!stripeSecretKey) {
-  throw new Error("STRIPE_SECRET_KEY is not configured");
-}
+const getStripePriceId = (
+  plan: Exclude<SubscriptionPlan, "FREE">,
+): string => {
+  const priceId = process.env[`STRIPE_PRICE_${plan}`];
 
-const stripe = new Stripe(stripeSecretKey);
+  if (!priceId) {
+    throw new AppError(
+      500,
+      `Stripe price is not configured for ${plan} plan`,
+    );
+  }
 
-const frontendUrl =
-  process.env.FRONTEND_URL || "http://localhost:3000";
-
-/* =========================================================
-   CREATE CHECKOUT SESSION
-========================================================= */
+  return priceId;
+};
 
 const createCheckoutSession = async (
   userId: string,
-  payload: ICreateCheckoutPayload
+  payload: ICreateCheckoutPayload,
 ) => {
-  const amountInCents = Math.round(payload.amount * 100);
+  const { plan } = payload;
 
-  const currency = (
-    payload.currency || "usd"
-  ).toLowerCase();
+  const user = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      isDeleted: false,
+      status: "ACTIVE",
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
 
-  /*
-   * Create payment record first.
-   * It starts as PENDING.
-   */
+  if (!user) {
+    throw new AppError(404, "User not found");
+  }
+
+  const existingPendingPayment = await prisma.payment.findFirst({
+    where: {
+      userId,
+      status: PaymentStatus.PENDING,
+    },
+    select: {
+      id: true,
+      stripeSessionId: true,
+    },
+  });
+
+  if (existingPendingPayment) {
+    throw new AppError(
+      409,
+      "You already have a pending payment",
+    );
+  }
+
+  const stripePriceId = getStripePriceId(plan);
+
+  let subscription = await prisma.subscription.findFirst({
+    where: {
+      userId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (!subscription) {
+    subscription = await prisma.subscription.create({
+      data: {
+        userId,
+        plan: SubscriptionPlan.FREE,
+        status: SubscriptionStatus.INACTIVE,
+      },
+    });
+  }
+
   const payment = await prisma.payment.create({
     data: {
       userId,
-      amount: payload.amount,
-      currency: currency.toUpperCase(),
-      provider: PaymentProvider.STRIPE,
+      subscriptionId: subscription.id,
+      amount: 0,
+      currency: "USD",
+      provider: "STRIPE",
       status: PaymentStatus.PENDING,
-    },
-
-    select: {
-      id: true,
-      amount: true,
-      currency: true,
-      provider: true,
-      status: true,
-      createdAt: true,
     },
   });
 
   try {
-    const session =
+    const checkoutSession =
       await stripe.checkout.sessions.create({
         mode: "payment",
 
-        payment_method_types: ["card"],
-
         line_items: [
           {
-            price_data: {
-              currency,
-
-              product_data: {
-                name:
-                  payload.description ||
-                  "Project Management SaaS Payment",
-              },
-
-              unit_amount: amountInCents,
-            },
-
+            price: stripePriceId,
             quantity: 1,
           },
         ],
 
+        customer_email: user.email,
+
         success_url:
-          `${frontendUrl}/payment/success` +
+          `${process.env.FRONTEND_URL}/payment/success` +
           `?session_id={CHECKOUT_SESSION_ID}`,
 
         cancel_url:
-          `${frontendUrl}/payment/cancel`,
+          `${process.env.FRONTEND_URL}/payment/cancel`,
 
         metadata: {
           paymentId: payment.id,
-          userId,
+          userId: user.id,
+          plan,
+          subscriptionId: subscription.id,
         },
       });
 
-    const updatedPayment =
-      await prisma.payment.update({
-        where: {
-          id: payment.id,
-        },
+    if (!checkoutSession.url) {
+      throw new AppError(
+        500,
+        "Stripe checkout URL was not generated",
+      );
+    }
 
-        data: {
-          stripeSessionId: session.id,
-        },
+    await prisma.payment.update({
+      where: {
+        id: payment.id,
+      },
+      data: {
+        stripeSessionId: checkoutSession.id,
+      },
+    });
 
-        select: {
-          id: true,
-          amount: true,
-          currency: true,
-          provider: true,
-          status: true,
-          stripeSessionId: true,
-          createdAt: true,
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: "PAYMENT_CREATED",
+        entity: "PAYMENT",
+        entityId: payment.id,
+        newData: {
+          plan,
+          stripeSessionId: checkoutSession.id,
         },
-      });
+      },
+    });
 
     return {
-      payment: updatedPayment,
-      checkoutUrl: session.url,
+      paymentId: payment.id,
+      checkoutUrl: checkoutSession.url,
+      sessionId: checkoutSession.id,
+      plan,
     };
   } catch (error) {
     await prisma.payment.update({
       where: {
         id: payment.id,
       },
-
       data: {
         status: PaymentStatus.FAILED,
       },
@@ -139,99 +183,72 @@ const createCheckoutSession = async (
   }
 };
 
-/* =========================================================
-   GET MY PAYMENTS
-========================================================= */
-
 const getMyPayments = async (
   userId: string,
-  query: IPaymentQuery
+  query: IPaymentQuery,
 ) => {
-  const page = Math.max(
-    Number(query.page) || 1,
-    1
-  );
+  const page = Math.max(Number(query.page) || 1, 1);
 
   const limit = Math.min(
     Math.max(Number(query.limit) || 10, 1),
-    100
+    100,
   );
 
   const skip = (page - 1) * limit;
 
   const where = {
     userId,
-
-    ...(query.status && {
-      status:
-        query.status as PaymentStatus,
-    }),
+    ...(query.status
+      ? {
+          status: query.status,
+        }
+      : {}),
   };
 
-  const allowedSortFields = [
-    "createdAt",
-    "updatedAt",
-    "amount",
-    "status",
-    "paidAt",
-  ];
+  const sortBy = query.sortBy || "createdAt";
+  const sortOrder = query.sortOrder || "desc";
 
-  const sortBy =
-    query.sortBy &&
-    allowedSortFields.includes(query.sortBy)
-      ? query.sortBy
-      : "createdAt";
+  const [payments, total] = await prisma.$transaction([
+    prisma.payment.findMany({
+      where,
+      skip,
+      take: limit,
 
-  const sortOrder =
-    query.sortOrder === "asc"
-      ? "asc"
-      : "desc";
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
 
-  const [payments, total] =
-    await Promise.all([
-      prisma.payment.findMany({
-        where,
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        provider: true,
+        status: true,
+        stripeSessionId: true,
+        stripePaymentIntentId: true,
+        paidAt: true,
+        createdAt: true,
+        updatedAt: true,
 
-        skip,
-        take: limit,
-
-        orderBy: {
-          [sortBy]: sortOrder,
-        },
-
-        select: {
-          id: true,
-          amount: true,
-          currency: true,
-          provider: true,
-          status: true,
-          stripeSessionId: true,
-          stripePaymentIntentId: true,
-          paidAt: true,
-          createdAt: true,
-          updatedAt: true,
-
-          subscription: {
-            select: {
-              id: true,
-              plan: true,
-              status: true,
-            },
+        subscription: {
+          select: {
+            id: true,
+            plan: true,
+            status: true,
           },
         },
-      }),
+      },
+    }),
 
-      prisma.payment.count({
-        where,
-      }),
-    ]);
+    prisma.payment.count({
+      where,
+    }),
+  ]);
 
-  const totalPages =
-    Math.ceil(total / limit);
+  const totalPages = Math.ceil(total / limit);
 
   return {
-    payments,
-
+    data: payments,
     meta: {
       page,
       limit,
@@ -241,48 +258,171 @@ const getMyPayments = async (
   };
 };
 
-/* =========================================================
-   STRIPE WEBHOOK
-========================================================= */
-
 const handleStripeWebhook = async (
   rawBody: Buffer,
-  signature: string
-) => {
+  signature: string | string[] | undefined,
+): Promise<IStripeWebhookResult> => {
+  if (!signature || Array.isArray(signature)) {
+    throw new AppError(
+      400,
+      "Stripe webhook signature is missing",
+    );
+  }
+
   const webhookSecret =
     process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
     throw new AppError(
       500,
-      "STRIPE_WEBHOOK_SECRET is not configured"
+      "Stripe webhook secret is not configured",
     );
   }
 
   let event: Stripe.Event;
 
   try {
-    event =
-      stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        webhookSecret
-      );
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      webhookSecret,
+    );
   } catch {
     throw new AppError(
       400,
-      "Invalid Stripe webhook signature"
+      "Invalid Stripe webhook signature",
     );
   }
 
   switch (event.type) {
-    /* =====================================================
-       CHECKOUT COMPLETED
-    ===================================================== */
-
     case "checkout.session.completed": {
-      const session =
-        event.data.object as Stripe.Checkout.Session;
+      const session = event.data
+        .object as Stripe.Checkout.Session;
+
+      if (session.payment_status !== "paid") {
+        break;
+      }
+
+      const paymentId =
+        session.metadata?.paymentId;
+
+      const userId =
+        session.metadata?.userId;
+
+      const plan =
+        session.metadata?.plan as
+          | Exclude<SubscriptionPlan, "FREE">
+          | undefined;
+
+      const subscriptionId =
+        session.metadata?.subscriptionId;
+
+      if (
+        !paymentId ||
+        !userId ||
+        !plan ||
+        !subscriptionId
+      ) {
+        throw new AppError(
+          400,
+          "Required payment metadata is missing",
+        );
+      }
+
+      const existingPayment =
+        await prisma.payment.findUnique({
+          where: {
+            id: paymentId,
+          },
+          select: {
+            id: true,
+            status: true,
+            stripeEventId: true,
+          },
+        });
+
+      if (!existingPayment) {
+        throw new AppError(
+          404,
+          "Payment record not found",
+        );
+      }
+
+      if (
+        existingPayment.stripeEventId === event.id ||
+        existingPayment.status === PaymentStatus.PAID
+      ) {
+        return {
+          received: true,
+          message: "Payment event already processed",
+        };
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.payment.update({
+          where: {
+            id: paymentId,
+          },
+          data: {
+            status: PaymentStatus.PAID,
+            stripeEventId: event.id,
+            stripePaymentIntentId:
+              typeof session.payment_intent === "string"
+                ? session.payment_intent
+                : null,
+            paidAt: new Date(),
+          },
+        });
+
+        await tx.subscription.update({
+          where: {
+            id: subscriptionId,
+          },
+          data: {
+            plan,
+            status: SubscriptionStatus.ACTIVE,
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(
+              Date.now() +
+                30 * 24 * 60 * 60 * 1000,
+            ),
+            cancelAtPeriodEnd: false,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId,
+            action: "PAYMENT_COMPLETED",
+            entity: "PAYMENT",
+            entityId: paymentId,
+            newData: {
+              stripeEventId: event.id,
+              plan,
+            },
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId,
+            action: "SUBSCRIPTION_UPDATED",
+            entity: "SUBSCRIPTION",
+            entityId: subscriptionId,
+            newData: {
+              plan,
+              status: SubscriptionStatus.ACTIVE,
+            },
+          },
+        });
+      });
+
+      break;
+    }
+
+    case "checkout.session.expired": {
+      const session = event.data
+        .object as Stripe.Checkout.Session;
 
       const paymentId =
         session.metadata?.paymentId;
@@ -291,36 +431,26 @@ const handleStripeWebhook = async (
         break;
       }
 
-      const paymentIntentId =
-        typeof session.payment_intent ===
-        "string"
-          ? session.payment_intent
-          : null;
-
-      /*
-       * Prevent duplicate webhook processing.
-       */
-      const existingPayment =
+      const payment =
         await prisma.payment.findUnique({
           where: {
             id: paymentId,
           },
-
           select: {
+            id: true,
             status: true,
             stripeEventId: true,
+            userId: true,
           },
         });
 
-      if (!existingPayment) {
+      if (!payment) {
         break;
       }
 
       if (
-        existingPayment.status ===
-          PaymentStatus.PAID &&
-        existingPayment.stripeEventId ===
-          event.id
+        payment.stripeEventId === event.id ||
+        payment.status !== PaymentStatus.PENDING
       ) {
         break;
       }
@@ -329,79 +459,6 @@ const handleStripeWebhook = async (
         where: {
           id: paymentId,
         },
-
-        data: {
-          status: PaymentStatus.PAID,
-
-          stripePaymentIntentId:
-            paymentIntentId,
-
-          stripeEventId: event.id,
-
-          paidAt: new Date(),
-        },
-      });
-
-      break;
-    }
-
-    /* =====================================================
-       PAYMENT FAILED
-    ===================================================== */
-
-    case "payment_intent.payment_failed": {
-      const paymentIntent =
-        event.data.object as Stripe.PaymentIntent;
-
-      const payment =
-        await prisma.payment.findFirst({
-          where: {
-            stripePaymentIntentId:
-              paymentIntent.id,
-          },
-
-          select: {
-            id: true,
-          },
-        });
-
-      if (payment) {
-        await prisma.payment.update({
-          where: {
-            id: payment.id,
-          },
-
-          data: {
-            status: PaymentStatus.FAILED,
-            stripeEventId: event.id,
-          },
-        });
-      }
-
-      break;
-    }
-
-    /* =====================================================
-       CHECKOUT EXPIRED
-    ===================================================== */
-
-    case "checkout.session.expired": {
-      const session =
-        event.data.object as Stripe.Checkout.Session;
-
-      const paymentId =
-        session.metadata?.paymentId;
-
-      if (!paymentId) {
-        break;
-      }
-
-      await prisma.payment.updateMany({
-        where: {
-          id: paymentId,
-          status: PaymentStatus.PENDING,
-        },
-
         data: {
           status: PaymentStatus.CANCELED,
           stripeEventId: event.id,
@@ -417,6 +474,7 @@ const handleStripeWebhook = async (
 
   return {
     received: true,
+    message: "Stripe webhook received successfully",
   };
 };
 
