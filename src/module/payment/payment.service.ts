@@ -1,5 +1,4 @@
 import Stripe from "stripe";
-
 import {
   PaymentStatus,
   SubscriptionPlan,
@@ -249,6 +248,7 @@ const getMyPayments = async (
 
   return {
     data: payments,
+
     meta: {
       page,
       limit,
@@ -334,6 +334,7 @@ const handleStripeWebhook = async (
           where: {
             id: paymentId,
           },
+
           select: {
             id: true,
             status: true,
@@ -358,18 +359,29 @@ const handleStripeWebhook = async (
         };
       }
 
+      // Stripe amount_total is in the smallest
+      // currency unit (for USD, cents).
+      // Example: $20.00 = 2000 cents.
       await prisma.$transaction(async (tx) => {
         await tx.payment.update({
           where: {
             id: paymentId,
           },
+
           data: {
+            amount: session.amount_total
+              ? session.amount_total / 100
+              : 0,
+
             status: PaymentStatus.PAID,
+
             stripeEventId: event.id,
+
             stripePaymentIntentId:
               typeof session.payment_intent === "string"
                 ? session.payment_intent
                 : null,
+
             paidAt: new Date(),
           },
         });
@@ -378,14 +390,19 @@ const handleStripeWebhook = async (
           where: {
             id: subscriptionId,
           },
+
           data: {
             plan,
+
             status: SubscriptionStatus.ACTIVE,
+
             currentPeriodStart: new Date(),
+
             currentPeriodEnd: new Date(
               Date.now() +
                 30 * 24 * 60 * 60 * 1000,
             ),
+
             cancelAtPeriodEnd: false,
           },
         });
@@ -396,6 +413,7 @@ const handleStripeWebhook = async (
             action: "PAYMENT_COMPLETED",
             entity: "PAYMENT",
             entityId: paymentId,
+
             newData: {
               stripeEventId: event.id,
               plan,
@@ -409,6 +427,7 @@ const handleStripeWebhook = async (
             action: "SUBSCRIPTION_UPDATED",
             entity: "SUBSCRIPTION",
             entityId: subscriptionId,
+
             newData: {
               plan,
               status: SubscriptionStatus.ACTIVE,
@@ -436,6 +455,7 @@ const handleStripeWebhook = async (
           where: {
             id: paymentId,
           },
+
           select: {
             id: true,
             status: true,
@@ -459,6 +479,7 @@ const handleStripeWebhook = async (
         where: {
           id: paymentId,
         },
+
         data: {
           status: PaymentStatus.CANCELED,
           stripeEventId: event.id,
