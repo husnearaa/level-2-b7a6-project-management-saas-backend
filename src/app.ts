@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-
 import authRoutes from "./module/auth/auth.route";
 import userRoutes from "./module/user/user.route";
 import taskRoutes from "./module/task/task.route";
@@ -9,6 +8,7 @@ import globalErrorHandler from "./middleware/globalErrorHandler";
 import { notFoundHandler } from "./middleware/notFound";
 import projectRoute from "./module/project/project.route";
 import adminRoute from "./module/admin/admin.route";
+import auditRoute from "./module/audit/audit.route";
 
 const app = express();
 
@@ -34,6 +34,8 @@ app.use("/api/v1/projects", projectRoute);
 app.use("/api/v1/tasks", taskRoutes);
 app.use("/api/v1/payments", paymentRoute);
 app.use("/api/v1/admin", adminRoute);
+app.use("/api/v1/audit", auditRoute);
+
 
 // 404 Handler
 app.use(notFoundHandler);
