@@ -10,7 +10,7 @@
     "db:seed": "prisma db seed",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "webhook:stripe": "stripe listen --forward-to localhost:5000/payments/webhook",
+    "webhook:stripe": "stripe listen --events checkout.session.completed --forward-to localhost:5000/payments/webhook",
     "format:check": "npx @biomejs/biome format ./src",
     "format:fix": "npx @biomejs/biome format --write ./src",
     "lint:check": "npx @biomejs/biome lint ./src",
