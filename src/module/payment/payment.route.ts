@@ -1,13 +1,10 @@
 import { Router } from "express";
-
 import auth from "../../middleware/auth";
 import validateRequest from "../../middleware/validateRequest";
-
 import {
   createCheckoutSessionSchema,
   getMyPaymentsSchema,
 } from "./payment.validation";
-
 import { paymentController } from "./payment.controller";
 
 const router = Router();
@@ -24,6 +21,12 @@ router.get(
   auth,
   validateRequest(getMyPaymentsSchema),
   paymentController.getMyPayments,
+);
+
+// Stripe Webhook
+router.post(
+  "/webhook",
+  paymentController.stripeWebhook,
 );
 
 export default router;
