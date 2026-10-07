@@ -15,7 +15,7 @@ const app = express();
 app.use(cors());
 
 app.get("/", (req, res) => {
-  res.send("Backend server is running!");
+  res.send("Backend server is running!"); 
 });
 
 // Stripe webhook MUST receive raw body
