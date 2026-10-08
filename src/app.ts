@@ -16,7 +16,16 @@ import auditRoute from "./module/audit/audit.route";
 
 const app = express();
 
-app.use(cors());
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "https://level-2-b7-a4-p7ogsz789-husnearaas-projects.vercel.app/",
+    ],
+    credentials: true,
+  })
+);
 
 app.get("/", (_req, res) => {
   res.send("Backend server is running!");
