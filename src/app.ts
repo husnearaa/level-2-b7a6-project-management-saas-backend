@@ -1,3 +1,4 @@
+
 import express from "express";
 import cors from "cors";
 
@@ -16,13 +17,12 @@ import auditRoute from "./module/audit/audit.route";
 
 const app = express();
 
-
 app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "https://level-2-b7-a4-p7ogsz789-husnearaas-projects.vercel.app/",
-      "https://project-management-saa-s-silk.vercel.app/"
+      "https://level-2-b7-a4-p7ogsz789-husnearaas-projects.vercel.app",
+      "https://project-management-saa-s-silk.vercel.app",
     ],
     credentials: true,
   })
@@ -65,40 +65,45 @@ export default app;
 
 
 
-
-
-
-
-
-
-
-
-
-
 // import express from "express";
 // import cors from "cors";
+
 // import authRoutes from "./module/auth/auth.route";
 // import userRoutes from "./module/user/user.route";
 // import taskRoutes from "./module/task/task.route";
 // import paymentRoute from "./module/payment/payment.route";
+// import { paymentController } from "./module/payment/payment.controller";
+
 // import globalErrorHandler from "./middleware/globalErrorHandler";
 // import { notFoundHandler } from "./middleware/notFound";
+
 // import projectRoute from "./module/project/project.route";
 // import adminRoute from "./module/admin/admin.route";
 // import auditRoute from "./module/audit/audit.route";
 
 // const app = express();
 
-// app.use(cors());
 
-// app.get("/", (req, res) => {
-//   res.send("Backend server is running!"); 
+// app.use(
+//   cors({
+//     origin: [
+//       "http://localhost:3000",
+//       "https://level-2-b7-a4-p7ogsz789-husnearaas-projects.vercel.app/",
+//       "https://project-management-saa-s-silk.vercel.app/"
+//     ],
+//     credentials: true,
+//   })
+// );
+
+// app.get("/", (_req, res) => {
+//   res.send("Backend server is running!");
 // });
 
-// // Stripe webhook MUST receive raw body
-// app.use(
+// // Stripe webhook MUST be registered before express.json()
+// app.post(
 //   "/api/v1/payments/webhook",
 //   express.raw({ type: "application/json" }),
+//   paymentController.stripeWebhook,
 // );
 
 // // Normal JSON body parser
@@ -113,7 +118,6 @@ export default app;
 // app.use("/api/v1/admin", adminRoute);
 // app.use("/api/v1/audit", auditRoute);
 
-
 // // 404 Handler
 // app.use(notFoundHandler);
 
@@ -121,3 +125,5 @@ export default app;
 // app.use(globalErrorHandler);
 
 // export default app;
+
+
