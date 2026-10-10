@@ -22,6 +22,7 @@ app.use(
     origin: [
       "http://localhost:3000",
       "https://level-2-b7-a4-p7ogsz789-husnearaas-projects.vercel.app/",
+      "https://project-management-saa-s-silk.vercel.app/"
     ],
     credentials: true,
   })
